@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*-freebsd.*']
+
+permissions:
+  contents: read
+
+jobs:
+  tag:
+    name: Tag matches versions.env
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          v=$(sed -n 's/^OPKSSH_VERSION=//p' versions.env)
+          r=$(sed -n 's/^RELEASE_REVISION=//p' versions.env)
+          want="$v-freebsd.$r"
+          [ "$TAG" = "$want" ] || { echo "::error::tag $TAG does not match versions.env ($want)"; exit 1; }
+
+  ci:
+    needs: tag
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Publish release
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: opkssh-freebsd-amd64
+          path: dist
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/opkssh-*-freebsd-amd64
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          v=$(sed -n 's/^OPKSSH_VERSION=//p' versions.env)
+          c=$(sed -n 's/^OPKSSH_COMMIT=//p' versions.env)
+          bin="opkssh-$v-freebsd-amd64"
+          (cd dist && sha256sum -c SHA256SUMS)
+          cat > notes.md <<NOTES
+          opkssh [$v](https://github.com/openpubkey/opkssh/releases/tag/$v) (commit \`$c\`) for FreeBSD/amd64,
+          with \`patches/opkssh-freebsd.patch\` applied.
+
+          \`\`\`
+          $(cat dist/SHA256SUMS)
+          \`\`\`
+
+          Verify:
+
+          \`\`\`
+          sha256sum -c SHA256SUMS
+          gh attestation verify $bin --repo $REPO
+          \`\`\`
+
+          Or rebuild it: \`git checkout $TAG && ./build.sh\` must produce the same SHA-256.
+          NOTES
+          gh release create "$TAG" "dist/$bin" dist/SHA256SUMS --verify-tag --title "$TAG" --notes-file notes.md

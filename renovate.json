@@ -1,0 +1,29 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":dependencyDashboard"],
+  "automerge": false,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Upstream opkssh release and its commit in versions.env",
+      "managerFilePatterns": ["/^versions\\.env$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\nOPKSSH_VERSION=(?<currentValue>\\S+)\\nOPKSSH_COMMIT=(?<currentDigest>[0-9a-f]{40})"
+      ],
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDepNames": ["openpubkey/opkssh"],
+      "labels": ["upstream"],
+      "prBodyNotes": [
+        "Before merging: CI must be green (patch applies, build is reproducible, FreeBSD tests pass). If the patch no longer applies, update `patches/opkssh-freebsd.patch` in this PR. Set `RELEASE_REVISION=1`. After merging, tag `<version>-freebsd.1` to publish a release."
+      ]
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}

@@ -1,0 +1,253 @@
+diff --git a/commands/auditresults.go b/commands/auditresults.go
+index 1ea3afa..d844b95 100644
+--- a/commands/auditresults.go
++++ b/commands/auditresults.go
+@@ -21,7 +21,7 @@ import (
+ 	"github.com/openpubkey/opkssh/policy"
+ )
+ 
+-// ProviderResults records the results of auditing a provider file, e.g. /etc/opk/providers
++// ProviderResults records the results of auditing a provider file, e.g. /usr/local/etc/opk/providers
+ type ProviderResults struct {
+ 	FilePath string `json:"file_path"`
+ 	// Error records any permission errors found on the provider file
+@@ -30,7 +30,7 @@ type ProviderResults struct {
+ 	Warnings []string `json:"warnings,omitempty"`
+ }
+ 
+-// PolicyFileResult records the results of auditing a policy file, e.g. /etc/opk/auth_id or ~/.opk/auth_id
++// PolicyFileResult records the results of auditing a policy file, e.g. /usr/local/etc/opk/auth_id or ~/.opk/auth_id
+ type PolicyFileResult struct {
+ 	FilePath string `json:"file_path"`
+ 	// The validation results for each row in the policy file
+diff --git a/commands/client_provider.go b/commands/client_provider.go
+index 729cac5..108efe3 100644
+--- a/commands/client_provider.go
++++ b/commands/client_provider.go
+@@ -116,7 +116,7 @@ func (c *ClientProviderAddCmd) Run() error {
+ 		action = "Replaced"
+ 	}
+ 	fmt.Fprintf(c.Out, "%s provider %s (%s) in %s\n", action, c.Alias, c.Issuer, c.ConfigPath)
+-	fmt.Fprintf(c.Out, "Servers must trust this client ID. On each server, add this line to /etc/opk/providers:\n")
++	fmt.Fprintf(c.Out, "Servers must trust this client ID. On each server, add this line to /usr/local/etc/opk/providers:\n")
+ 	fmt.Fprintf(c.Out, "  %s %s 24h\n", c.Issuer, c.ClientID)
+ 	return nil
+ }
+diff --git a/commands/config/server_config.go b/commands/config/server_config.go
+index 41027eb..4e2d62d 100644
+--- a/commands/config/server_config.go
++++ b/commands/config/server_config.go
+@@ -39,7 +39,7 @@ type CacheConfig struct {
+ 	FallbackMaxAge time.Duration `yaml:"fallback_max_age"`
+ }
+ 
+-// ServerConfig struct to represent the /etc/opk/config.yml file that runs on the server that the user is SSHing into
++// ServerConfig struct to represent the /usr/local/etc/opk/config.yml file that runs on the server that the user is SSHing into
+ type ServerConfig struct {
+ 	EnvVars    map[string]string `yaml:"env_vars"`
+ 	DenyUsers  []string          `yaml:"deny_users"`
+diff --git a/commands/inspect.go b/commands/inspect.go
+index 25eeafa..eff9a09 100644
+--- a/commands/inspect.go
++++ b/commands/inspect.go
+@@ -277,7 +277,7 @@ func (i *InspectCmd) printTokenMetadata(pkt *pktoken.PKToken) {
+ }
+ 
+ // expirationPolicyNames lists the expiration policies a server can set in
+-// /etc/opk/providers, in the order inspect prints them.
++// /usr/local/etc/opk/providers, in the order inspect prints them.
+ var expirationPolicyNames = []string{"12h", "24h", "48h", "1week", "oidc", "oidc_refreshed", "never"}
+ 
+ var expirationPolicyMaxAges = map[string]time.Duration{
+diff --git a/commands/readhome.go b/commands/readhome.go
+index f0431b9..92b4498 100644
+--- a/commands/readhome.go
++++ b/commands/readhome.go
+@@ -14,7 +14,7 @@
+ //
+ // SPDX-License-Identifier: Apache-2.0
+ 
+-//go:build linux || darwin
++//go:build linux || darwin || freebsd
+ 
+ package commands
+ 
+diff --git a/main.go b/main.go
+index d3c14d8..c77dc9a 100644
+--- a/main.go
++++ b/main.go
+@@ -81,7 +81,7 @@ This program allows users to:
+ 		Short:        "Appends new rule to the policy file",
+ 		Long: `Add appends a new policy entry in the auth_id policy file granting SSH access to the specified email or subscriber ID (sub) or group.
+ 
+-It first attempts to write to the system-wide file (/etc/opk/auth_id). If it lacks permissions to update this file it falls back to writing to the user-specific file (~/.opk/auth_id).
++It first attempts to write to the system-wide file (/usr/local/etc/opk/auth_id). If it lacks permissions to update this file it falls back to writing to the user-specific file (~/.opk/auth_id).
+ 
+ Arguments:
+   principal            The target user account (requested principal).
+@@ -309,7 +309,7 @@ You should not call this command directly. It is called by the opkssh verify com
+ 		SilenceUsage: true,
+ 		Use:          "verify <principal> <cert> <key_type>",
+ 		Short:        "Verify an SSH key (used by sshd AuthorizedKeysCommand)",
+-		Long: `Verify extracts a PK token from a base64-encoded SSH certificate and verifies it against policy. It expects an allowed provider file at /etc/opk/providers and a user policy file at either /etc/opk/auth_id or ~/.opk/auth_id.
++		Long: `Verify extracts a PK token from a base64-encoded SSH certificate and verifies it against policy. It expects an allowed provider file at /usr/local/etc/opk/providers and a user policy file at either /usr/local/etc/opk/auth_id or ~/.opk/auth_id.
+ 
+ This command is intended to be called by sshd as an AuthorizedKeysCommand:
+   https://man.openbsd.org/sshd_config#AuthorizedKeysCommand
+@@ -325,8 +325,8 @@ Where the tokens in /etc/ssh/sshd_config are defined as:
+ 
+ Verification checks performed:
+   1. Ensures the PK token is properly formed, signed, and issued by the specified OpenID Provider (OP).
+-  2. Confirms the PK token's issue (iss) and client ID (audience) are listed in the allowed provider file (/etc/opk/providers) and the token is not expired.
+-  3. Validates the identity (email or sub) in the PK token against user policies (/etc/opk/auth_id or ~/.opk/auth_id) to ensure it can assume the requested username (principal).
++  2. Confirms the PK token's issue (iss) and client ID (audience) are listed in the allowed provider file (/usr/local/etc/opk/providers) and the token is not expired.
++  3. Validates the identity (email or sub) in the PK token against user policies (/usr/local/etc/opk/auth_id or ~/.opk/auth_id) to ensure it can assume the requested username (principal).
+ 
+ If all checks pass, Verify authorizes the SSH connection.
+ 
+@@ -542,7 +542,7 @@ Exit code: 0 if all entries are valid, 1 if any warnings or errors are found.`,
+ 		Long: `Add an OpenID Provider to the client config, so that
+ "opkssh login <alias>" uses it. The client config is created from the default
+ config if it does not exist. Note client ID and other values must match what
+-is configured on the server at /etc/opk/providers.
++is configured on the server at /usr/local/etc/opk/providers.
+ 
+ To replace an already configured provider pass --replace.`,
+ 		Example: `  opkssh client provider add google https://accounts.google.com <client-id> --client-secret <client-secret> --replace`,
+diff --git a/policy/enforcer.go b/policy/enforcer.go
+index b3344ec..2bf586f 100644
+--- a/policy/enforcer.go
++++ b/policy/enforcer.go
+@@ -111,7 +111,7 @@ func (s *checkedClaims) UnmarshalJSON(data []byte) error {
+ }
+ 
+ // GetPluginPolicyDir returns the default location for policy plugins.
+-// On Unix: /etc/opk/policy.d, On Windows: %ProgramData%\opk\policy.d
++// On Unix: /usr/local/etc/opk/policy.d, On Windows: %ProgramData%\opk\policy.d
+ func GetPluginPolicyDir() string {
+ 	return filepath.Join(GetSystemConfigBasePath(), "policy.d")
+ }
+diff --git a/policy/files/perminfo_unix.go b/policy/files/perminfo_unix.go
+index db5a8bf..5efe7ec 100644
+--- a/policy/files/perminfo_unix.go
++++ b/policy/files/perminfo_unix.go
+@@ -23,19 +23,19 @@ package files
+ // on Unix/Linux systems.
+ var RequiredPerms = struct {
+ 	// SystemPolicy is the system-wide policy file
+-	// (e.g. /etc/opk/auth_id).
++	// (e.g. /usr/local/etc/opk/auth_id).
+ 	SystemPolicy PermInfo
+ 	// HomePolicy is the per-user policy file
+ 	// (e.g. ~/.opk/auth_id).
+ 	HomePolicy PermInfo
+ 	// Providers is the provider configuration file
+-	// (e.g. /etc/opk/providers).
++	// (e.g. /usr/local/etc/opk/providers).
+ 	Providers PermInfo
+ 	// Config is the server configuration file
+-	// (e.g. /etc/opk/config.yml).
++	// (e.g. /usr/local/etc/opk/config.yml).
+ 	Config PermInfo
+ 	// PluginsDir is the directory containing policy plugin definitions
+-	// (e.g. /etc/opk/policy.d).
++	// (e.g. /usr/local/etc/opk/policy.d).
+ 	PluginsDir PermInfo
+ 	// PluginFile is an individual plugin YAML file inside the plugins
+ 	// directory.
+diff --git a/policy/files/permschecker.go b/policy/files/permschecker.go
+index 9c61a8e..5317595 100644
+--- a/policy/files/permschecker.go
++++ b/policy/files/permschecker.go
+@@ -22,9 +22,19 @@ package files
+ import (
+ 	"fmt"
+ 	"io/fs"
++	"runtime"
+ 	"strings"
+ )
+ 
++// statOwnerGroupCmd returns the command that prints "<owner> <group>" for a path.
++// GNU stat (Linux) uses -c with %U/%G; BSD stat (FreeBSD) uses -f with %Su/%Sg.
++func statOwnerGroupCmd(path string) (string, []string) {
++	if runtime.GOOS == "freebsd" {
++		return "/usr/bin/stat", []string{"-f", "%Su %Sg", path}
++	}
++	return "stat", []string{"-c", "%U %G", path}
++}
++
+ // CheckPerm checks the file at the given path if it has the desired permissions.
+ // The argument requirePerm is a list to enable the caller to specify multiple
+ // permissions only one of which needs to match the permissions on the file.
+@@ -40,7 +50,8 @@ func (u *PermsChecker) CheckPerm(path string, requirePerm []fs.FileMode, require
+ 
+ 	// if the requiredOwner or requiredGroup are specified then run stat and check if they match
+ 	if requiredOwner != "" || requiredGroup != "" {
+-		statOutput, err := u.CmdRunner("stat", "-c", "%U %G", path)
++		statCmd, statArgs := statOwnerGroupCmd(path)
++		statOutput, err := u.CmdRunner(statCmd, statArgs...)
+ 		if err != nil {
+ 			return fmt.Errorf("failed to run stat: %w", err)
+ 		}
+diff --git a/policy/files/permschecker_common.go b/policy/files/permschecker_common.go
+index cbb4d63..4fa2c25 100644
+--- a/policy/files/permschecker_common.go
++++ b/policy/files/permschecker_common.go
+@@ -24,7 +24,7 @@ import (
+ )
+ 
+ // ModeSystemPerms is the expected permission bits that should be set for opkssh
+-// system policy files (on Unix: /etc/opk/auth_id, /etc/opk/providers; on Windows: %ProgramData%\opk\auth_id, %ProgramData%\opk\providers).
++// system policy files (on Unix: /usr/local/etc/opk/auth_id, /usr/local/etc/opk/providers; on Windows: %ProgramData%\opk\auth_id, %ProgramData%\opk\providers).
+ // This mode means that only the owner of the file can write/read to the file, but the group which
+ // should be opksshuser can read the file.
+ const ModeSystemPerms = fs.FileMode(0o640)
+diff --git a/policy/paths_unix.go b/policy/paths_unix.go
+index f685f52..bed3c9b 100644
+--- a/policy/paths_unix.go
++++ b/policy/paths_unix.go
+@@ -20,7 +20,7 @@
+ package policy
+ 
+ // GetSystemConfigBasePath returns the base path for system opkssh configuration.
+-// On Unix-like systems, this is /etc/opk
++// On Unix-like systems, this is /usr/local/etc/opk
+ func GetSystemConfigBasePath() string {
+-	return "/etc/opk"
++	return "/usr/local/etc/opk"
+ }
+diff --git a/policy/policyloader.go b/policy/policyloader.go
+index 96f9a32..37b5035 100644
+--- a/policy/policyloader.go
++++ b/policy/policyloader.go
+@@ -27,7 +27,7 @@ import (
+ )
+ 
+ // SystemDefaultPolicyPath is the default filepath where opkssh policy is
+-// defined. On Unix: /etc/opk/auth_id, On Windows: %ProgramData%\opk\auth_id
++// defined. On Unix: /usr/local/etc/opk/auth_id, On Windows: %ProgramData%\opk\auth_id
+ var SystemDefaultPolicyPath = filepath.Join(GetSystemConfigBasePath(), "auth_id")
+ 
+ // SystemDefaultProvidersPath is the default filepath where opkssh provider
+diff --git a/policy/validator.go b/policy/validator.go
+index 16ce984..056671a 100644
+--- a/policy/validator.go
++++ b/policy/validator.go
+@@ -79,7 +79,7 @@ func (v *PolicyValidator) ValidateEntry(principal, identityAttr, issuer string,
+ 	_, exists := v.issuerMap[issuer]
+ 	if !exists {
+ 		result.Status = StatusError
+-		result.Reason = "issuer not found in /etc/opk/providers"
++		result.Reason = "issuer not found in /usr/local/etc/opk/providers"
+ 
+ 		// issuer in policy file has a trailing slash, but issuer in provider file does not have a trailing slash
+ 		if strings.HasSuffix(issuer, "/") {
+@@ -110,7 +110,7 @@ func (v *PolicyValidator) ValidateEntry(principal, identityAttr, issuer string,
+ 		}
+ 
+ 		result.Hints = append(result.Hints,
+-			fmt.Sprintf("Ensure the issuer URL (%s) is correct and matches an entry in /etc/opk/providers", issuer))
++			fmt.Sprintf("Ensure the issuer URL (%s) is correct and matches an entry in /usr/local/etc/opk/providers", issuer))
+ 		return result
+ 	}
+ 
